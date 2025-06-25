@@ -12,15 +12,16 @@ namespace GPG315.TaylorSprankling
         private readonly string[] _scenesToCheckToolbarString = { "Current", "Selected", "Build List", "Project" };
         
         private Vector2 _scrollPosition;
-        private int _scenesToCheckToolbarInt;
+        private int _scenesToCheckToolbarInt = 3;
+        private bool _showScenesChecked;
         private bool _ignorePackagesFolder = true;
         private bool _ignoreEditorFolders = true;
         
-        private List<SceneAsset> _sceneAssets;
-        private string[] _dependencyPaths;
-        private List<Object> _filteredDependencies;
-        private List<string> _unusedAssetPaths;
-        private List<Object> _filteredUnusedAssets;
+        private static List<SceneAsset> _sceneAssets;
+        private static List<string> _dependencyPaths;
+        private static List<Object> _filteredDependencies;
+        private static List<string> _unusedAssetPaths;
+        private static List<Object> _filteredUnusedAssets;
         
         
         [MenuItem("Window/GPG315 Plugins/" + PluginName)]
@@ -29,12 +30,62 @@ namespace GPG315.TaylorSprankling
             GetWindow<AssetFinder>(PluginName);
         }
         
+        [MenuItem("Assets/" + PluginName + "/Add to used assets", false)]
+        public static void AddToAssets()
+        {
+            foreach (Object obj in Selection.objects)
+            {
+                string objPath = AssetDatabase.GetAssetPath(obj);
+                if (!_dependencyPaths.Contains(objPath))
+                {
+                    _dependencyPaths.Add(objPath);
+                }
+                if (_unusedAssetPaths.Contains(objPath))
+                {
+                    _unusedAssetPaths.Remove(objPath);
+                }
+            }
+            string s = Selection.objects.Length != 1 ? "s" : "";
+            Debug.Log($"{Selection.objects.Length} selected asset{s} marked as dependant");
+        }
+        
+        [MenuItem("Assets/" + PluginName + "/Add to used assets", true)]
+        public static bool AddToAssets(MenuCommand menuCommand)
+        {
+            return _sceneAssets != null;
+        }
+        
+        [MenuItem("Assets/" + PluginName + "/Remove from used assets", false)]
+        public static void RemoveFromAssets()
+        {
+            foreach (Object obj in Selection.objects)
+            {
+                string objPath = AssetDatabase.GetAssetPath(obj);
+                if (_dependencyPaths.Contains(objPath))
+                {
+                    _dependencyPaths.Remove(objPath);
+                }
+                if (!_unusedAssetPaths.Contains(objPath))
+                {
+                    _unusedAssetPaths.Add(objPath);
+                }
+            }
+            string s = Selection.objects.Length != 1 ? "s" : "";
+            Debug.Log($"{Selection.objects.Length} selected asset{s} removed from dependencies");
+        }
+        
+        [MenuItem("Assets/" + PluginName + "/Remove from used assets", true)]
+        public static bool RemoveFromAssets(MenuCommand menuCommand)
+        {
+            return _sceneAssets != null;
+        }
+        
         private void OnGUI()
         {
             _scrollPosition = GUILayout.BeginScrollView(_scrollPosition);
             GUILayout.Space(10);
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Scenes to check");
+            GUILayout.Label("Scenes to scan:", EditorStyles.boldLabel);
             _scenesToCheckToolbarInt = GUILayout.Toolbar(_scenesToCheckToolbarInt, _scenesToCheckToolbarString);
             GUILayout.EndHorizontal();
             
@@ -99,30 +150,46 @@ namespace GPG315.TaylorSprankling
                         sceneAssetPaths[i] = AssetDatabase.GetAssetPath(_sceneAssets[i]);
                     }
                     
-                    _dependencyPaths = AssetDatabase.GetDependencies(sceneAssetPaths);
+                    _dependencyPaths = AssetDatabase.GetDependencies(sceneAssetPaths).ToList();
                     
                     SelectDependencies();
+                    
+                    _showScenesChecked = _sceneAssets.Count <= 10;
                 }
+                
             }
             
             if (_sceneAssets != null)
             {
-                string s = _filteredDependencies.Count != 1 ? "s" : "";
-                string selectedString = _filteredDependencies.Count >= 1 ? " and selected" : "";
-                GUILayout.Box($"{_filteredDependencies.Count} associated asset{s} found{selectedString} within:");
-                
-                for (int index = 0; index < _sceneAssets.Count; index++)
+                string s = _sceneAssets.Count != 1 ? "s" : "";
+                _showScenesChecked = EditorGUILayout.BeginFoldoutHeaderGroup(_showScenesChecked, $"{_sceneAssets.Count} scene{s} scanned", EditorStyles.foldoutHeader);
+                if (_showScenesChecked)
                 {
-                    GUILayout.Space(-4);
-                    GUILayout.Box($"- {_sceneAssets[index].name}");
-                    if (index >= 9) break;
+                    for (int index = 0; index < _sceneAssets.Count; index++)
+                    {
+                        GUILayout.Space(-2);
+                        if (GUILayout.Button($"{_sceneAssets[index].name}", EditorStyles.linkLabel))
+                        {
+                            Selection.activeObject = null;
+                            Selection.activeObject = _sceneAssets[index];
+                        }
+                        if (index >= 99) break;
+                    }
+                    
+                    if (_sceneAssets.Count > 100)
+                    {
+                        GUILayout.Space(-2);
+                        GUILayout.Label($"+ {_sceneAssets.Count - 100} more scenes");
+                    }
                 }
+                EditorGUILayout.EndFoldoutHeaderGroup();
                 
-                if (_sceneAssets.Count > 10)
-                {
-                    GUILayout.Space(-4);
-                    GUILayout.Box($"+ {_sceneAssets.Count - 10} more scenes");
-                }
+                GUILayout.Space(10);
+                
+                string ss = _dependencyPaths.Count != 1 ? "s" : "";
+                GUILayout.Label($"{_dependencyPaths.Count} associated asset{ss} found");
+                GUILayout.Space(-2);
+                GUILayout.Label("*Includes unfiltered selections", EditorStyles.miniLabel);
                 
                 GUILayout.BeginHorizontal();
                 if (GUILayout.Button("Select all associated assets"))
@@ -174,7 +241,7 @@ namespace GPG315.TaylorSprankling
             
             GUILayout.Space(25);
             
-            GUILayout.Label("Options");
+            GUILayout.Label("Options", EditorStyles.boldLabel);
             _ignorePackagesFolder = GUILayout.Toggle(_ignorePackagesFolder, "Ignore Packages folder");
             _ignoreEditorFolders = GUILayout.Toggle(_ignoreEditorFolders, "Ignore Editor folders");
             
@@ -211,7 +278,7 @@ namespace GPG315.TaylorSprankling
             Selection.objects = _filteredDependencies.ToArray();
         }
         
-        private void ClearData()
+        private static void ClearData()
         {
             _sceneAssets = null;
             _dependencyPaths = null;

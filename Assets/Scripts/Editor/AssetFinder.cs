@@ -12,6 +12,7 @@ namespace GPG315.TaylorSprankling
         private readonly string[] _scenesToCheckToolbarString = { "Current", "Selected", "Build List", "Project" };
         
         private Vector2 _scrollPosition;
+        private GUIStyle _boxStyle;
         private int _scenesToCheckToolbarInt = 3;
         private bool _showScenesChecked;
         private bool _ignorePackagesFolder = true;
@@ -98,7 +99,9 @@ namespace GPG315.TaylorSprankling
                 4 => "Selection choice included no scenes...",
                 _ => "WHAT THE HECK IS HAPPENING HERE"
             };
-            GUILayout.Box(scenesToCheckInfoBox);
+            
+            _boxStyle ??= new GUIStyle(GUI.skin.box) { normal = { textColor = new Color(0.9f, 0.9f, 0.9f) } };
+            GUILayout.Box(scenesToCheckInfoBox, _boxStyle);
             
             if (GUILayout.Button("Scan for associated assets"))
             {
@@ -248,7 +251,7 @@ namespace GPG315.TaylorSprankling
             if (_sceneAssets != null)
             {
                 GUILayout.Space(10);
-                GUILayout.Box("Packages folder is always ignored when selecting unused assets");
+                GUILayout.Box("Packages folder is always ignored when selecting unused assets", _boxStyle);
             }
             
             GUILayout.EndScrollView();
